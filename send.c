@@ -102,7 +102,7 @@ void send_mail(const char *receiver, const char *subject, const char *msg, const
     buf[r_size] = '\0'; // Do not forget the null terminator
     printf("%s", buf);
     // input user
-    const char *user_base64 = encode_str(user);
+    char *user_base64 = encode_str(user);
     if (send(s_fd, user_base64, strlen(user_base64), 0) == -1)
     {
         perror("send user");
@@ -115,8 +115,9 @@ void send_mail(const char *receiver, const char *subject, const char *msg, const
     }
     buf[r_size] = '\0'; // Do not forget the null terminator
     printf("%s", buf);
+    free(user_base64);
     // input password
-    const char *pass_bass64 = encode_str(pass);
+    char *pass_bass64 = encode_str(pass);
     if (send(s_fd, pass_bass64, strlen(pass_bass64), 0) == -1)
     {
         perror("send pass");
@@ -177,24 +178,69 @@ void send_mail(const char *receiver, const char *subject, const char *msg, const
     buf[r_size] = '\0'; // Do not forget the null terminator
     printf("%s", buf);
     // TODO: Send message data
-    // subject
-    char *SUBJ = (char *)malloc(MAX_SIZE + 1);
-    int SUBJ_len = sprintf(SUBJ, "subject: %s\n", subject);
-    if (send(s_fd, SUBJ, SUBJ_len, 0) == -1)
-    {
-        perror("subject");
-        exit(EXIT_FAILURE);
-    }
-    free(SUBJ);
     // from
     char *DATA_FROM = (char *)malloc(MAX_SIZE + 1);
-    int DATA_FROM_len = sprintf(DATA_FROM, "from: %s\n\n", from);
+    int DATA_FROM_len = sprintf(DATA_FROM, "from: %s\n", from);
     if (send(s_fd, DATA_FROM, DATA_FROM_len, 0) == -1)
     {
         perror("data from");
         exit(EXIT_FAILURE);
     }
     free(DATA_FROM);
+    // attachment
+    int att_flag;
+    FILE *att_fp, *base64_att_fp;
+    if (!att_path || !(att_fp = fopen(att_path, "rb")))
+    {
+        att_flag = 0;
+    }
+    else
+    {
+        att_flag = 1;
+        base64_att_fp = fopen("base64_att", "w");
+        encode_file(att_fp, base64_att_fp);
+        base64_att_fp = fopen("base64_att", "r");
+    }
+    if (att_flag)
+    {
+        char *MIME_VERSION = "MIME-Version: 1.0\n";
+        if (send(s_fd, MIME_VERSION, strlen(MIME_VERSION), 0) == -1)
+        {
+            perror("MIME-Version");
+            exit(EXIT_FAILURE);
+        }
+        char *CONTENT_TYPE = "Content-Type: multipart/mixed; boundary=qwertyuiopasdfghjklzxcvbnm\n";
+        if (send(s_fd, CONTENT_TYPE, strlen(CONTENT_TYPE), 0) == -1)
+        {
+            perror("Content-Type");
+            exit(EXIT_FAILURE);
+        }
+    }
+    // subject
+    char *SUBJ = (char *)malloc(MAX_SIZE + 1);
+    int SUBJ_len = sprintf(SUBJ, "subject: %s\n\n", subject);
+    if (send(s_fd, SUBJ, SUBJ_len, 0) == -1)
+    {
+        perror("subject");
+        exit(EXIT_FAILURE);
+    }
+    free(SUBJ);
+    // boundary
+    if (att_flag)
+    {
+        char *BOUNDARY = "--qwertyuiopasdfghjklzxcvbnm\n";
+        if (send(s_fd, BOUNDARY, strlen(BOUNDARY), 0) == -1)
+        {
+            perror("boundary");
+            exit(EXIT_FAILURE);
+        }
+        char *CONTENT_TYPE = "Content-Type: text/plain\r\n\n";
+        if (send(s_fd, CONTENT_TYPE, strlen(CONTENT_TYPE), 0) == -1)
+        {
+            perror("Content-Type");
+            exit(EXIT_FAILURE);
+        }
+    }
     // message
     FILE *msg_fp = fopen(msg, "r");
     char *data_msg;
@@ -217,6 +263,49 @@ void send_mail(const char *receiver, const char *subject, const char *msg, const
         exit(EXIT_FAILURE);
     }
     free(data_msg);
+    // attachment
+    if (att_flag)
+    {
+        char *BOUNDARY = "\n\n--qwertyuiopasdfghjklzxcvbnm\n";
+        if (send(s_fd, BOUNDARY, strlen(BOUNDARY), 0) == -1)
+        {
+            perror("boundary");
+            exit(EXIT_FAILURE);
+        }
+        char *CONTENT_TYPE = "Content-Type: application/zip\r\n";
+        if (send(s_fd, CONTENT_TYPE, strlen(CONTENT_TYPE), 0) == -1)
+        {
+            perror("Content-Type");
+            exit(EXIT_FAILURE);
+        }
+        char *CONTENT_DISPOSITION = "Content-Disposition: attachment; name=attachment.zip\r\n";
+        if (send(s_fd, CONTENT_DISPOSITION, strlen(CONTENT_DISPOSITION), 0) == -1)
+        {
+            perror("Content-Disposition");
+            exit(EXIT_FAILURE);
+        }
+        char *CONTENT_TRANSFER_ENCODING = "Content-Transfer-Encoding: base64\r\n\n";
+        if (send(s_fd, CONTENT_TRANSFER_ENCODING, strlen(CONTENT_TRANSFER_ENCODING), 0) == -1)
+        {
+            perror("Content-Transfer-Encoding");
+            exit(EXIT_FAILURE);
+        }
+        fseek(base64_att_fp, 0, SEEK_END);
+        int att_size = ftell(base64_att_fp);
+        char* data_att = (char *)malloc(att_size);
+        fseek(base64_att_fp, 0, SEEK_SET);
+        fread(data_att, sizeof(char), att_size, base64_att_fp);
+        if (send(s_fd, data_att, att_size, 0) == -1)
+        {
+            perror("attachment");
+            exit(EXIT_FAILURE);
+        }
+        if (send(s_fd, BOUNDARY, strlen(BOUNDARY), 0) == -1)
+        {
+            perror("boundary");
+            exit(EXIT_FAILURE);
+        }
+    }
     // TODO: Message ends with a single period
     if (send(s_fd, end_msg, strlen(end_msg), 0) == -1)
     {
