@@ -85,6 +85,7 @@ void send_mail(const char *receiver, const char *subject, const char *msg, const
     }
     buf[r_size] = '\0'; // Do not forget the null terminator
     printf("%s", buf);
+
     // TODO: Authentication. Server response should be printed out.
     // AUTH command
     const char *AUTH = "AUTH login\r\n";
@@ -101,7 +102,7 @@ void send_mail(const char *receiver, const char *subject, const char *msg, const
     buf[r_size] = '\0'; // Do not forget the null terminator
     printf("%s", buf);
     // input user
-    char *user_base64 = encode_str(user);
+    const char *user_base64 = encode_str(user);
     if (send(s_fd, user_base64, strlen(user_base64), 0) == -1)
     {
         perror("send user");
@@ -115,7 +116,7 @@ void send_mail(const char *receiver, const char *subject, const char *msg, const
     buf[r_size] = '\0'; // Do not forget the null terminator
     printf("%s", buf);
     // input password
-    char *pass_bass64 = encode_str(pass);
+    const char *pass_bass64 = encode_str(pass);
     if (send(s_fd, pass_bass64, strlen(pass_bass64), 0) == -1)
     {
         perror("send pass");
@@ -128,11 +129,11 @@ void send_mail(const char *receiver, const char *subject, const char *msg, const
     }
     buf[r_size] = '\0'; // Do not forget the null terminator
     printf("%s", buf);
-    pause();
+
     // TODO: Send MAIL FROM command and print server response
-    char *FROM;
-    sprintf(FROM, "MAIL FROM: <%s>\r\n", from);
-    if (send(s_fd, FROM, strlen(FROM), 0) == -1)
+    char *FROM = (char *)malloc(MAX_SIZE + 1);
+    int FROM_len = sprintf(FROM, "MAIL FROM: <%s>\r\n", from);
+    if (send(s_fd, FROM, FROM_len, 0) == -1)
     {
         perror("FROM");
         exit(EXIT_FAILURE);
@@ -144,17 +145,105 @@ void send_mail(const char *receiver, const char *subject, const char *msg, const
     }
     buf[r_size] = '\0'; // Do not forget the null terminator
     printf("%s", buf);
-    pause();
+    free(FROM);
     // TODO: Send RCPT TO command and print server response
-
+    char *RCPT = (void *)malloc(MAX_SIZE + 1);
+    int RCPT_len = sprintf(RCPT, "RCPT TO: <%s>\r\n", receiver);
+    if (send(s_fd, RCPT, RCPT_len, 0) == -1)
+    {
+        perror("RCPT");
+        exit(EXIT_FAILURE);
+    }
+    if ((r_size = recv(s_fd, buf, MAX_SIZE, 0)) == -1)
+    {
+        perror("recv");
+        exit(EXIT_FAILURE);
+    }
+    buf[r_size] = '\0'; // Do not forget the null terminator
+    printf("%s", buf);
+    free(RCPT);
     // TODO: Send DATA command and print server response
-
+    char *DATA = "data\r\n";
+    if (send(s_fd, DATA, strlen(DATA), 0) == -1)
+    {
+        perror("data");
+        exit(EXIT_FAILURE);
+    }
+    if ((r_size = recv(s_fd, buf, MAX_SIZE, 0)) == -1)
+    {
+        perror("recv");
+        exit(EXIT_FAILURE);
+    }
+    buf[r_size] = '\0'; // Do not forget the null terminator
+    printf("%s", buf);
     // TODO: Send message data
-
+    // subject
+    char *SUBJ = (char *)malloc(MAX_SIZE + 1);
+    int SUBJ_len = sprintf(SUBJ, "subject: %s\n", subject);
+    if (send(s_fd, SUBJ, SUBJ_len, 0) == -1)
+    {
+        perror("subject");
+        exit(EXIT_FAILURE);
+    }
+    free(SUBJ);
+    // from
+    char *DATA_FROM = (char *)malloc(MAX_SIZE + 1);
+    int DATA_FROM_len = sprintf(DATA_FROM, "from: %s\n\n", from);
+    if (send(s_fd, DATA_FROM, DATA_FROM_len, 0) == -1)
+    {
+        perror("data from");
+        exit(EXIT_FAILURE);
+    }
+    free(DATA_FROM);
+    // message
+    FILE *msg_fp = fopen(msg, "r");
+    char *data_msg;
+    if (msg_fp)
+    {
+        fseek(msg_fp, 0, SEEK_END);
+        int msg_size = ftell(msg_fp);
+        data_msg = (char *)malloc(msg_size);
+        fseek(msg_fp, 0, SEEK_SET);
+        fread(data_msg, sizeof(char), msg_size, msg_fp);
+    }
+    else
+    {
+        data_msg = (char *)malloc(strlen(msg));
+        memcpy(data_msg, msg, strlen(msg));
+    }
+    if (send(s_fd, data_msg, strlen(data_msg), 0) == -1)
+    {
+        perror("message");
+        exit(EXIT_FAILURE);
+    }
+    free(data_msg);
     // TODO: Message ends with a single period
-
+    if (send(s_fd, end_msg, strlen(end_msg), 0) == -1)
+    {
+        perror("end message");
+        exit(EXIT_FAILURE);
+    }
+    if ((r_size = recv(s_fd, buf, MAX_SIZE, 0)) == -1)
+    {
+        perror("recv");
+        exit(EXIT_FAILURE);
+    }
+    buf[r_size] = '\0'; // Do not forget the null terminator
+    printf("%s", buf);
     // TODO: Send QUIT command and print server response
-
+    char *QUIT = "quit\r\n";
+    if (send(s_fd, QUIT, strlen(QUIT), 0) == -1)
+    {
+        perror("quit");
+        exit(EXIT_FAILURE);
+    }
+    if ((r_size = recv(s_fd, buf, MAX_SIZE, 0)) == -1)
+    {
+        perror("recv");
+        exit(EXIT_FAILURE);
+    }
+    buf[r_size] = '\0'; // Do not forget the null terminator
+    printf("%s", buf);
     close(s_fd);
 }
 
