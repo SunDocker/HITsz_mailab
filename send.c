@@ -117,8 +117,8 @@ void send_mail(const char *receiver, const char *subject, const char *msg, const
     printf("%s", buf);
     free(user_base64);
     // input password
-    char *pass_bass64 = encode_str(pass);
-    if (send(s_fd, pass_bass64, strlen(pass_bass64), 0) == -1)
+    char *pass_base64 = encode_str(pass);
+    if (send(s_fd, pass_base64, strlen(pass_base64), 0) == -1)
     {
         perror("send pass");
         exit(EXIT_FAILURE);
@@ -130,6 +130,7 @@ void send_mail(const char *receiver, const char *subject, const char *msg, const
     }
     buf[r_size] = '\0'; // Do not forget the null terminator
     printf("%s", buf);
+    free(pass_base64);
 
     // TODO: Send MAIL FROM command and print server response
     char *FROM = (char *)malloc(MAX_SIZE + 1);
