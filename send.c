@@ -199,6 +199,8 @@ void send_mail(const char *receiver, const char *subject, const char *msg, const
         att_flag = 1;
         base64_att_fp = fopen("base64_att", "w");
         encode_file(att_fp, base64_att_fp);
+        fclose(att_fp);
+        fclose(base64_att_fp);
         base64_att_fp = fopen("base64_att", "r");
     }
     if (att_flag)
@@ -263,6 +265,7 @@ void send_mail(const char *receiver, const char *subject, const char *msg, const
         exit(EXIT_FAILURE);
     }
     free(data_msg);
+    fclose(msg_fp);
     // attachment
     if (att_flag)
     {
@@ -300,6 +303,7 @@ void send_mail(const char *receiver, const char *subject, const char *msg, const
             perror("attachment");
             exit(EXIT_FAILURE);
         }
+        fclose(base64_att_fp);
         if (send(s_fd, BOUNDARY, strlen(BOUNDARY), 0) == -1)
         {
             perror("boundary");
